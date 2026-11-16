@@ -28,3 +28,14 @@ cd android
 ```
 
 The debug APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+## Next Release / Roadmap
+
+Planned items for the next release:
+
+- [ ] **Full-screen, castable option**
+  - Add an immersive full-screen visualizer mode in `MainActivity` (hiding system bars and HUD, with keep-screen-on support).
+  - Add casting / external display support (e.g., Google Cast / `MediaRouter` / Android `Presentation` for secondary displays) so Geiss can be cast full-screen to a TV or external monitor.
+- [ ] **120 FPS option**
+  - Add a `120 FPS` choice alongside `30 / 45 / 60` in `SettingsActivity` / `GeissPreferences`.
+  - Update frame pacing in `GeissWallpaperService` (currently `coerceAtLeast(8L)` ms sleep) and request high refresh rate via `Surface.setFrameRate` (Android 11+) / choreographer timing for smooth 120 Hz output.
