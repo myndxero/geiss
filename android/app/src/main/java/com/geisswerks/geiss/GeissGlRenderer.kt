@@ -161,7 +161,11 @@ class GeissGlRenderer(context: Context) :
                 eng,
                 dt,
                 snap.linearFilter,
-                snap.parallaxAmount
+                snap.parallaxAmount,
+                snap.hdrEnabled,
+                snap.hdrIntensity,
+                snap.vibrancy,
+                snap.contrast
             )
         }
 

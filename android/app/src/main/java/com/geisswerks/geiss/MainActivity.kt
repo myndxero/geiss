@@ -6,6 +6,7 @@ import android.app.WallpaperManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.media.projection.MediaProjectionManager
 import android.opengl.GLSurfaceView
 import android.os.Build
@@ -85,14 +86,26 @@ class MainActivity : AppCompatActivity() {
         controller = GeissController.getInstance(this)
         renderer = GeissGlRenderer(this)
 
+        applyWindowHdrMode(controller.prefs.getSnapshot().hdrEnabled)
         setupGlSurface()
         setupControls()
         ensurePermissions()
     }
 
+    private fun applyWindowHdrMode(hdrEnabled: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            window.colorMode = if (hdrEnabled) {
+                ActivityInfo.COLOR_MODE_HDR
+            } else {
+                ActivityInfo.COLOR_MODE_DEFAULT
+            }
+        }
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     private fun setupGlSurface() {
         binding.glSurfaceView.setEGLContextClientVersion(2)
+        binding.glSurfaceView.setEGLConfigChooser(8, 8, 8, 8, 0, 0)
         binding.glSurfaceView.preserveEGLContextOnPause = true
         binding.glSurfaceView.setRenderer(renderer)
         binding.glSurfaceView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
@@ -100,13 +113,28 @@ class MainActivity : AppCompatActivity() {
         val gestureDetector = GestureDetector(
             this,
             object : GestureDetector.SimpleOnGestureListener() {
-                override fun onDoubleTap(e: MotionEvent): Boolean {
+                private fun performConfiguredAction(e: MotionEvent) {
                     when (controller.prefs.getSnapshot().doubleTapAction) {
+                        DoubleTapAction.ACTION_WHEEL -> openActionWheel(e.x, e.y)
                         DoubleTapAction.NEXT_MAP -> controller.nextMap()
                         DoubleTapAction.RANDOM_PALETTE -> controller.randomizePalette()
                         DoubleTapAction.SONG_POPUP -> controller.triggerSongTitlePopup()
                         DoubleTapAction.TOGGLE_LOCK -> controller.toggleLockMode()
                         DoubleTapAction.NONE -> Unit
+                    }
+                }
+
+                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                    if (controller.prefs.getSnapshot().singleTapTriggersAction) {
+                        performConfiguredAction(e)
+                        return true
+                    }
+                    return false
+                }
+
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    if (!controller.prefs.getSnapshot().singleTapTriggersAction) {
+                        performConfiguredAction(e)
                     }
                     return true
                 }
@@ -131,6 +159,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun openActionWheel(x: Float = -1f, y: Float = -1f) {
+        val snap = controller.prefs.getSnapshot()
+        binding.actionWheelView.updateActiveFlags(controller.primaryStatus(), snap)
+        binding.actionWheelView.setAnchor(x, y)
+        binding.actionWheelView.visibility = View.VISIBLE
+        binding.actionWheelView.alpha = 0f
+        binding.actionWheelView.animate().alpha(1f).setDuration(140L).start()
+    }
+
+    private fun dismissActionWheel() {
+        binding.actionWheelView.animate().alpha(0f).setDuration(110L).withEndAction {
+            binding.actionWheelView.visibility = View.GONE
+        }.start()
+    }
+
     private fun setupControls() {
         binding.btnSetWallpaper.setOnClickListener { openLiveWallpaperPicker() }
         binding.btnSettings.setOnClickListener {
@@ -150,8 +193,36 @@ class MainActivity : AppCompatActivity() {
         binding.btnSlideShift.setOnClickListener { controller.toggleSlideShift() }
         binding.btnSongPopup.setOnClickListener { controller.triggerSongTitlePopup() }
         binding.btnRefreshEdges.setOnClickListener { controller.refreshEdges() }
+        binding.btnHdrToggle.setOnClickListener {
+            val hdrOn = controller.toggleHdr()
+            applyWindowHdrMode(hdrOn)
+            refreshPrefHighlights()
+        }
+        binding.btnVibrancy.setOnClickListener {
+            controller.cycleVibrancyPreset()
+            refreshPrefHighlights()
+        }
+        binding.btnActionWheel.setOnClickListener {
+            openActionWheel()
+        }
         binding.btnWaveform.setOnClickListener { controller.cycleWaveform() }
         binding.btnSpectrum.setOnClickListener { controller.toggleSpectrumMode() }
+
+        binding.actionWheelView.onActionSelected = { action ->
+            dismissActionWheel()
+            if (action == GeissActionWheelView.WheelAction.OPEN_SETTINGS) {
+                startActivity(Intent(this, SettingsActivity::class.java))
+            } else {
+                controller.executeWheelAction(action)
+                if (action == GeissActionWheelView.WheelAction.TOGGLE_HDR) {
+                    applyWindowHdrMode(controller.prefs.getSnapshot().hdrEnabled)
+                }
+                refreshPrefHighlights()
+            }
+        }
+        binding.actionWheelView.onDismissRequested = {
+            dismissActionWheel()
+        }
 
         binding.btnModesDialog.setOnClickListener {
             ModesAndPresetsDialogs.showModesDialog(this, controller)
@@ -265,6 +336,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateUiStatus(st: GeissNative.EngineStatus) {
+        val snap = controller.prefs.getSnapshot()
         val modeId = st.currentMode.toString().padStart(2, '0')
         val modeName = GeissNative.nativeGetModeName(st.currentMode)
         binding.tvModeTitle.text = "Mode $modeId: $modeName"
@@ -272,14 +344,16 @@ class MainActivity : AppCompatActivity() {
         val waveStr = if (st.currentWaveform == 0) "Wave Off" else "Wave ${st.currentWaveform}"
         val visStr = if (st.isSpectrumMode) "Spectrum" else waveStr
         val soundStr = if (st.isSoundActive) "Audio Active" else "Silent"
+        val hdrStr = if (snap.hdrEnabled) " HDR" else ""
         binding.tvStatusSub.text =
-            "${st.colorDepthBits}-bit · ${st.fps.toInt()} FPS · $visStr · $soundStr"
+            "${st.colorDepthBits}-bit$hdrStr · ${st.fps.toInt()} FPS · $visStr · $soundStr"
 
         binding.btnWaveform.text = "Wave ${st.currentWaveform}"
         styleToggle(binding.btnLockMap, st.isModeLocked, "Lock Map")
         styleToggle(binding.btnLockPalette, st.isPaletteLocked, "Lock Pal")
         styleToggle(binding.btnSlideShift, st.isSlideShift, "Shift")
         styleToggle(binding.btnSpectrum, st.isSpectrumMode, "Spectrum")
+        refreshPrefHighlights(snap)
 
         if (binding.seekVolumePos.progress != st.volpos) {
             binding.seekVolumePos.progress = st.volpos
@@ -289,6 +363,18 @@ class MainActivity : AppCompatActivity() {
         for (i in effectButtons.indices) {
             styleToggle(effectButtons[i], st.effects[i], GeissNative.EFFECT_NAMES[i])
         }
+    }
+
+    private fun refreshPrefHighlights(snap: GeissConfigSnapshot = controller.prefs.getSnapshot()) {
+        styleToggle(binding.btnHdrToggle, snap.hdrEnabled, if (snap.hdrEnabled) "HDR ON" else "HDR")
+        val vibLabel = when (snap.colorVibrancyPreset) {
+            ColorVibrancyPreset.CLASSIC -> "Classic"
+            ColorVibrancyPreset.VIVID -> "Vivid"
+            ColorVibrancyPreset.HYPER_NEON -> "Neon"
+            ColorVibrancyPreset.PASTEL -> "Pastel"
+            ColorVibrancyPreset.CUSTOM -> "Custom"
+        }
+        styleToggle(binding.btnVibrancy, snap.colorVibrancyPreset != ColorVibrancyPreset.CLASSIC, vibLabel)
     }
 
     private fun styleToggle(btn: MaterialButton, active: Boolean, label: String) {
@@ -317,6 +403,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        val snap = controller.prefs.getSnapshot()
+        applyWindowHdrMode(snap.hdrEnabled)
+        refreshPrefHighlights(snap)
         renderer.setActive(true)
         binding.glSurfaceView.onResume()
         controller.addUiStatusListener(statusListener)

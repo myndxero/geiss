@@ -2216,23 +2216,26 @@ void GeissEngine::RefreshEdges() {
 
 void GeissEngine::TriggerTouchBurst(float normX, float normY, float strength) {
     std::lock_guard<std::mutex> lock(mutex_);
-    int cx = std::clamp(static_cast<int>(normX * FXW_), 12, FXW_ - 13);
-    int cy = std::clamp(static_cast<int>(normY * FXH_), FX_YCUT_HIDE_ + 12, FXH_ - FX_YCUT_HIDE_ - 13);
+    float resScale = std::clamp(std::min(FXW_, FXH_) / 480.0f, 1.0f, 3.5f);
+    int maxR = static_cast<int>(10.0f * resScale);
+    int margin = maxR + 2;
+    int cx = std::clamp(static_cast<int>(normX * FXW_), margin, std::max(margin, FXW_ - 1 - margin));
+    int cy = std::clamp(static_cast<int>(normY * FXH_), FX_YCUT_HIDE_ + margin, std::max(FX_YCUT_HIDE_ + margin, FXH_ - FX_YCUT_HIDE_ - 1 - margin));
 
-    int rad = static_cast<int>(10.0f * std::clamp(strength, 0.4f, 1.5f));
-    rad = std::clamp(rad, 4, 10);
+    float rad = 10.0f * std::clamp(strength, 0.4f, 1.5f) * resScale;
 
     float cr = 0.6f + 0.4f * sinf(floatframe_ * 0.07f);
     float cg = 0.6f + 0.4f * sinf(floatframe_ * 0.09f + 2.1f);
     float cb = 0.6f + 0.4f * sinf(floatframe_ * 0.11f + 4.2f);
 
-    for (int y = -10; y <= 10; ++y) {
+    for (int y = -maxR; y <= maxR; ++y) {
         int py = cy + y;
         if (py <= FX_YCUT_ || py >= FXH_ - 1 - FX_YCUT_) continue;
-        for (int x = -10; x <= 10; ++x) {
+        for (int x = -maxR; x <= maxR; ++x) {
             int px = cx + x;
             if (px < 0 || px >= FXW_) continue;
-            int val = static_cast<int>((rad - sqrt_tab_[x + 10][y + 10]) * 24.0f);
+            float d = sqrtf(static_cast<float>(x * x + y * y));
+            int val = static_cast<int>((rad - d) * (24.0f / resScale));
             if (val > 0) {
                 if (config_.colorDepthBits == 8) {
                     int idx = py * FXW_ + px;

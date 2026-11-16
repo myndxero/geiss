@@ -167,6 +167,85 @@ class GeissController private constructor(context: Context) {
         forEachEngine { GeissNative.nativeRefreshEdges(it) }
     }
 
+    fun toggleHdr(): Boolean {
+        val next = !prefs.getSnapshot().hdrEnabled
+        prefs.update { putBoolean(GeissPreferences.KEY_HDR_ENABLED, next) }
+        if (!prefs.getSnapshot().suppressAllMsg) {
+            showOverlayMessage(if (next) "HDR Bloom ON" else "HDR Bloom OFF")
+        }
+        return next
+    }
+
+    fun cycleVibrancyPreset(): ColorVibrancyPreset {
+        val cycle = listOf(
+            ColorVibrancyPreset.CLASSIC,
+            ColorVibrancyPreset.VIVID,
+            ColorVibrancyPreset.HYPER_NEON,
+            ColorVibrancyPreset.PASTEL
+        )
+        val current = prefs.getSnapshot().colorVibrancyPreset
+        val idx = cycle.indexOf(current)
+        val next = cycle[(idx + 1) % cycle.size]
+        prefs.update {
+            putString(GeissPreferences.KEY_VIBRANCY_PRESET, next.key)
+            putFloat(GeissPreferences.KEY_VIBRANCY, next.vibrancy)
+            putFloat(GeissPreferences.KEY_CONTRAST, next.contrast)
+        }
+        if (!prefs.getSnapshot().suppressAllMsg) {
+            showOverlayMessage(next.label)
+        }
+        return next
+    }
+
+    fun executeWheelAction(action: GeissActionWheelView.WheelAction): String? {
+        return when (action) {
+            GeissActionWheelView.WheelAction.NEXT_MAP -> {
+                nextMap()
+                null
+            }
+            GeissActionWheelView.WheelAction.RANDOM_PALETTE -> {
+                randomizePalette()
+                "Palette Randomized"
+            }
+            GeissActionWheelView.WheelAction.TOGGLE_LOCK_MAP -> {
+                toggleLockMode()
+                null
+            }
+            GeissActionWheelView.WheelAction.TOGGLE_LOCK_PAL -> {
+                toggleLockPalette()
+                null
+            }
+            GeissActionWheelView.WheelAction.SONG_POPUP -> {
+                triggerSongTitlePopup()
+                null
+            }
+            GeissActionWheelView.WheelAction.CYCLE_WAVE -> {
+                cycleWaveform()
+                null
+            }
+            GeissActionWheelView.WheelAction.TOGGLE_SPECTRUM -> {
+                toggleSpectrumMode()
+                null
+            }
+            GeissActionWheelView.WheelAction.TOGGLE_SHIFT -> {
+                toggleSlideShift()
+                null
+            }
+            GeissActionWheelView.WheelAction.TOGGLE_HDR -> {
+                val on = toggleHdr()
+                if (on) "HDR Bloom ON" else "HDR Bloom OFF"
+            }
+            GeissActionWheelView.WheelAction.CYCLE_VIBRANCY -> {
+                cycleVibrancyPreset().label
+            }
+            GeissActionWheelView.WheelAction.REFRESH_EDGES -> {
+                refreshEdges()
+                "Edges Refreshed"
+            }
+            GeissActionWheelView.WheelAction.OPEN_SETTINGS -> null
+        }
+    }
+
     fun exportPresetFromActive(slotName: String): PresetState? {
         for (s in surfaces) {
             var exported: PresetState? = null

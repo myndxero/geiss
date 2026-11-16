@@ -257,11 +257,48 @@
                     style="@style/Widget.Material3.Button.OutlinedButton"
                     android:layout_width="wrap_content"
                     android:layout_height="34dp"
+                    android:layout_marginEnd="6dp"
                     android:insetTop="0dp"
                     android:insetBottom="0dp"
                     android:text="Edges"
                     android:textSize="12sp"
                     app:strokeColor="@color/geiss_border" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnHdrToggle"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_marginEnd="6dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="HDR"
+                    android:textSize="12sp"
+                    app:strokeColor="@color/geiss_border" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnVibrancy"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_marginEnd="6dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="Vivid"
+                    android:textSize="12sp"
+                    app:strokeColor="@color/geiss_border" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnActionWheel"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="Wheel"
+                    android:textColor="@color/geiss_cyan"
+                    android:textSize="12sp"
+                    app:backgroundTint="@color/geiss_surface_elevated" />
             </LinearLayout>
         </HorizontalScrollView>
 
@@ -395,5 +432,12 @@
             </LinearLayout>
         </HorizontalScrollView>
     </LinearLayout>
+
+    <!-- Interactive Radial Action Wheel Overlay -->
+    <com.geisswerks.geiss.GeissActionWheelView
+        android:id="@+id/actionWheelView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
 
 </FrameLayout>

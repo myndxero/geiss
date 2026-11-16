@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Build
 import android.text.InputType
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
@@ -298,18 +299,26 @@ object ModesAndPresetsDialogs {
         container.addView(statusTv)
 
         val radioGroup = RadioGroup(context)
-        val buttons = mutableMapOf<AudioSourceMode, RadioButton>()
+        val modeById = mutableMapOf<Int, AudioSourceMode>()
+        var checkedId = View.NO_ID
         for (mode in AudioSourceMode.entries) {
             if (mode == AudioSourceMode.PLAYBACK_CAPTURE && Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
                 continue
             }
+            val rbId = View.generateViewId()
             val rb = RadioButton(context).apply {
+                id = rbId
                 text = "${mode.label}\n${mode.description}"
                 setPadding(8, 12, 8, 12)
-                isChecked = (mode == current)
             }
             radioGroup.addView(rb)
-            buttons[mode] = rb
+            modeById[rbId] = mode
+            if (mode == current) {
+                checkedId = rbId
+            }
+        }
+        if (checkedId != View.NO_ID) {
+            radioGroup.check(checkedId)
         }
         container.addView(radioGroup)
 
@@ -317,7 +326,7 @@ object ModesAndPresetsDialogs {
             .setTitle("Music Audio Capture Source")
             .setView(container)
             .setPositiveButton("Apply") { _, _ ->
-                val selected = buttons.entries.firstOrNull { it.value.isChecked }?.key
+                val selected = modeById[radioGroup.checkedRadioButtonId]
                     ?: AudioSourceMode.OUTPUT_MIX
                 controller.prefs.update { putString(GeissPreferences.KEY_AUDIO_SOURCE, selected.key) }
                 if (!GeissAudioManager.hasRecordAudioPermission(context)) {

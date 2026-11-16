@@ -43,6 +43,14 @@
             android:label="@string/settings_title"
             android:parentActivityName=".MainActivity" />
 
+        <!-- Translucent Radial Action Wheel Overlay (launched from Live Wallpaper tap) -->
+        <activity
+            android:name=".GeissWheelActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:theme="@style/Theme.Geiss.Wheel" />
+
         <!-- Live Wallpaper Service -->
         <service
             android:name=".GeissWallpaperService"

@@ -24,18 +24,50 @@ class GeissWallpaperService : WallpaperService() {
         private val gestureDetector = GestureDetector(
             applicationContext,
             object : GestureDetector.SimpleOnGestureListener() {
-                override fun onDoubleTap(e: MotionEvent): Boolean {
-                    when (controller.prefs.getSnapshot().doubleTapAction) {
+                private fun performConfiguredAction(e: MotionEvent) {
+                    val snap = controller.prefs.getSnapshot()
+                    when (snap.doubleTapAction) {
+                        DoubleTapAction.ACTION_WHEEL -> openActionWheel(e.x, e.y)
                         DoubleTapAction.NEXT_MAP -> controller.nextMap()
                         DoubleTapAction.RANDOM_PALETTE -> controller.randomizePalette()
                         DoubleTapAction.SONG_POPUP -> controller.triggerSongTitlePopup()
                         DoubleTapAction.TOGGLE_LOCK -> controller.toggleLockMode()
                         DoubleTapAction.NONE -> Unit
                     }
+                }
+
+                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                    if (controller.prefs.getSnapshot().singleTapTriggersAction) {
+                        performConfiguredAction(e)
+                        return true
+                    }
+                    return false
+                }
+
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    if (!controller.prefs.getSnapshot().singleTapTriggersAction) {
+                        performConfiguredAction(e)
+                    }
                     return true
                 }
             }
         )
+
+        private fun openActionWheel(x: Float, y: Float) {
+            try {
+                val intent = android.content.Intent(applicationContext, GeissWheelActivity::class.java).apply {
+                    addFlags(
+                        android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+                            android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION or
+                            android.content.Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+                    )
+                    putExtra(GeissWheelActivity.EXTRA_TAP_X, x)
+                    putExtra(GeissWheelActivity.EXTRA_TAP_Y, y)
+                }
+                applicationContext.startActivity(intent)
+            } catch (_: Exception) {
+            }
+        }
 
         private var surfW = 1
         private var surfH = 1
@@ -125,6 +157,7 @@ class GeissWallpaperService : WallpaperService() {
         private var eglContext: EGLContext? = null
         private var eglSurface: EGLSurface? = null
         private var gl: GL10? = null
+        private var forceSdrEgl = false
 
         override fun run() {
             try {
@@ -167,6 +200,11 @@ class GeissWallpaperService : WallpaperService() {
                     }
                     if (!shouldSkipFrame && (needCreateSurface || eglSurface == null)) {
                         if (!createSurfaceLocked()) {
+                            if (!forceSdrEgl && controller.prefs.getSnapshot().hdrEnabled) {
+                                forceSdrEgl = true
+                                destroyEglLocked()
+                                needCreateContext = true
+                            }
                             lock.wait(50)
                             shouldSkipFrame = true
                         } else {
@@ -229,7 +267,16 @@ class GeissWallpaperService : WallpaperService() {
             if (!e.eglInitialize(dpy, version)) return false
             eglDisplay = dpy
 
-            val attribs = intArrayOf(
+            val hdrAttribs = intArrayOf(
+                EGL10.EGL_RENDERABLE_TYPE, 4, // EGL_OPENGL_ES2_BIT
+                EGL10.EGL_RED_SIZE, 10,
+                EGL10.EGL_GREEN_SIZE, 10,
+                EGL10.EGL_BLUE_SIZE, 10,
+                EGL10.EGL_ALPHA_SIZE, 2,
+                EGL10.EGL_DEPTH_SIZE, 0,
+                EGL10.EGL_NONE
+            )
+            val sdrAttribs = intArrayOf(
                 EGL10.EGL_RENDERABLE_TYPE, 4, // EGL_OPENGL_ES2_BIT
                 EGL10.EGL_RED_SIZE, 8,
                 EGL10.EGL_GREEN_SIZE, 8,
@@ -240,8 +287,15 @@ class GeissWallpaperService : WallpaperService() {
             )
             val configs = arrayOfNulls<EGLConfig>(1)
             val numConfig = IntArray(1)
-            if (!e.eglChooseConfig(dpy, attribs, configs, 1, numConfig) || numConfig[0] <= 0) {
-                return false
+            val useHdr = controller.prefs.getSnapshot().hdrEnabled && !forceSdrEgl
+            val foundHdr = useHdr &&
+                e.eglChooseConfig(dpy, hdrAttribs, configs, 1, numConfig) &&
+                numConfig[0] > 0 &&
+                configs[0] != null
+            if (!foundHdr) {
+                if (!e.eglChooseConfig(dpy, sdrAttribs, configs, 1, numConfig) || numConfig[0] <= 0) {
+                    return false
+                }
             }
             val cfg = configs[0] ?: return false
             eglConfig = cfg

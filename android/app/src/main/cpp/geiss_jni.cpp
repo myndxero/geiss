@@ -32,8 +32,43 @@ constexpr const char* kFragmentShader = R"GLSL(
 precision mediump float;
 varying vec2 vTex;
 uniform sampler2D uTex;
+uniform vec2 uTexel;
+uniform float uVibrancy;
+uniform float uContrast;
+uniform float uHdrEnabled;
+uniform float uHdrIntensity;
+
+vec3 applyColorGrade(vec3 c) {
+    vec3 adj = clamp((c - vec3(0.018 * (uContrast - 1.0))) * uContrast, 0.0, 1.5);
+    float luma = dot(adj, vec3(0.2126, 0.7152, 0.0722));
+    float maxC = max(adj.r, max(adj.g, adj.b));
+    float minC = min(adj.r, min(adj.g, adj.b));
+    float sat = clamp(maxC - minC, 0.0, 1.0);
+    float vib = mix(uVibrancy, 1.0 + (uVibrancy - 1.0) * 0.45, sat);
+    return max(mix(vec3(luma), adj, vib), 0.0);
+}
+
 void main() {
-    gl_FragColor = texture2D(uTex, vTex);
+    vec3 col = applyColorGrade(texture2D(uTex, vTex).rgb);
+    if (uHdrEnabled > 0.5) {
+        vec2 o1 = uTexel * 2.5;
+        vec2 o2 = uTexel * 5.5;
+        vec3 s =
+            applyColorGrade(texture2D(uTex, vTex + vec2( o1.x,  0.0)).rgb) +
+            applyColorGrade(texture2D(uTex, vTex + vec2(-o1.x,  0.0)).rgb) +
+            applyColorGrade(texture2D(uTex, vTex + vec2( 0.0,  o1.y)).rgb) +
+            applyColorGrade(texture2D(uTex, vTex + vec2( 0.0, -o1.y)).rgb) +
+            applyColorGrade(texture2D(uTex, vTex + vec2( o2.x,  o2.y)).rgb) * 0.75 +
+            applyColorGrade(texture2D(uTex, vTex + vec2(-o2.x,  o2.y)).rgb) * 0.75 +
+            applyColorGrade(texture2D(uTex, vTex + vec2( o2.x, -o2.y)).rgb) * 0.75 +
+            applyColorGrade(texture2D(uTex, vTex + vec2(-o2.x, -o2.y)).rgb) * 0.75;
+        s /= 7.0;
+        float bLuma = dot(s, vec3(0.2126, 0.7152, 0.0722));
+        float glowMask = smoothstep(0.28, 0.90, bLuma);
+        vec3 hdr = col * (1.0 + 0.28 * uHdrIntensity) + s * (glowMask * 0.90 * uHdrIntensity);
+        col = (hdr / (hdr + vec3(0.36))) * 1.36;
+    }
+    gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
 )GLSL";
 
@@ -90,6 +125,11 @@ public:
         aPosLoc_ = glGetAttribLocation(program_, "aPos");
         aTexLoc_ = glGetAttribLocation(program_, "aTex");
         uTexLoc_ = glGetUniformLocation(program_, "uTex");
+        uTexelLoc_ = glGetUniformLocation(program_, "uTexel");
+        uVibrancyLoc_ = glGetUniformLocation(program_, "uVibrancy");
+        uContrastLoc_ = glGetUniformLocation(program_, "uContrast");
+        uHdrEnabledLoc_ = glGetUniformLocation(program_, "uHdrEnabled");
+        uHdrIntensityLoc_ = glGetUniformLocation(program_, "uHdrIntensity");
 
         glGenTextures(1, &texture_);
         glBindTexture(GL_TEXTURE_2D, texture_);
@@ -108,7 +148,8 @@ public:
         glViewport(0, 0, surfaceW_, surfaceH_);
     }
 
-    void Draw(geiss::GeissEngine* engine, float dtSeconds, bool linearFilter, float parallaxAmount) {
+    void Draw(geiss::GeissEngine* engine, float dtSeconds, bool linearFilter, float parallaxAmount,
+              bool hdrEnabled, float hdrIntensity, float vibrancy, float contrast) {
         if (!engine || !program_ || !texture_) return;
 
         engine->RenderFrame(dtSeconds);
@@ -165,6 +206,11 @@ public:
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture_);
         glUniform1i(uTexLoc_, 0);
+        if (uTexelLoc_ >= 0) glUniform2f(uTexelLoc_, 1.0f / static_cast<float>(w), 1.0f / static_cast<float>(h));
+        if (uVibrancyLoc_ >= 0) glUniform1f(uVibrancyLoc_, std::clamp(vibrancy, 0.2f, 2.5f));
+        if (uContrastLoc_ >= 0) glUniform1f(uContrastLoc_, std::clamp(contrast, 0.5f, 1.8f));
+        if (uHdrEnabledLoc_ >= 0) glUniform1f(uHdrEnabledLoc_, hdrEnabled ? 1.0f : 0.0f);
+        if (uHdrIntensityLoc_ >= 0) glUniform1f(uHdrIntensityLoc_, std::clamp(hdrIntensity, 0.1f, 2.5f));
 
         glEnableVertexAttribArray(aPosLoc_);
         glVertexAttribPointer(aPosLoc_, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), verts);
@@ -196,6 +242,11 @@ private:
     GLint aPosLoc_ = -1;
     GLint aTexLoc_ = -1;
     GLint uTexLoc_ = -1;
+    GLint uTexelLoc_ = -1;
+    GLint uVibrancyLoc_ = -1;
+    GLint uContrastLoc_ = -1;
+    GLint uHdrEnabledLoc_ = -1;
+    GLint uHdrIntensityLoc_ = -1;
     int texW_ = 0;
     int texH_ = 0;
     int surfaceW_ = 1;
@@ -637,11 +688,15 @@ Java_com_geisswerks_geiss_GeissNative_nativeGlOnSurfaceChanged(JNIEnv*, jclass, 
 JNIEXPORT void JNICALL
 Java_com_geisswerks_geiss_GeissNative_nativeGlDrawFrame(
         JNIEnv*, jclass, jlong glHandle, jlong engineHandle,
-        jfloat dtSeconds, jboolean linearFilter, jfloat parallaxAmount) {
+        jfloat dtSeconds, jboolean linearFilter, jfloat parallaxAmount,
+        jboolean hdrEnabled, jfloat hdrIntensity,
+        jfloat vibrancy, jfloat contrast) {
     auto* gl = AsGl(glHandle);
     auto* eng = AsEngine(engineHandle);
     if (gl && eng) {
-        gl->Draw(eng, dtSeconds, linearFilter == JNI_TRUE, parallaxAmount);
+        gl->Draw(
+            eng, dtSeconds, linearFilter == JNI_TRUE, parallaxAmount,
+            hdrEnabled == JNI_TRUE, hdrIntensity, vibrancy, contrast);
     }
 }
 

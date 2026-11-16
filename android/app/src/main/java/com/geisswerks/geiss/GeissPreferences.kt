@@ -35,7 +35,8 @@ enum class RenderResolution(val key: String, val shortEdgePx: Int, val label: St
     LOW("LOW", 320, "Retro 320p (Max Battery)"),
     MEDIUM("MEDIUM", 480, "Balanced 480p (Recommended)"),
     HIGH("HIGH", 720, "Crisp 720p"),
-    NATIVE("NATIVE", 1080, "Ultra 1080p");
+    FULL_HD("FULL_HD", 1080, "Full HD 1080p"),
+    NATIVE("NATIVE", Int.MAX_VALUE, "Native Resolution (Full Screen Pixels)");
 
     companion object {
         fun fromKey(key: String?): RenderResolution =
@@ -43,7 +44,26 @@ enum class RenderResolution(val key: String, val shortEdgePx: Int, val label: St
     }
 }
 
+enum class ColorVibrancyPreset(
+    val key: String,
+    val label: String,
+    val vibrancy: Float,
+    val contrast: Float
+) {
+    CLASSIC("CLASSIC", "Classic 1998 (Balanced)", 1.0f, 1.0f),
+    VIVID("VIVID", "Vivid OLED (Rich Colors & Deep Blacks)", 1.38f, 1.12f),
+    HYPER_NEON("HYPER_NEON", "Hyper Neon (Maximum Punch)", 1.78f, 1.24f),
+    PASTEL("PASTEL", "Pastel Dream (Soft Glow)", 0.72f, 0.96f),
+    CUSTOM("CUSTOM", "Custom Vibrancy & Contrast", 1.38f, 1.12f);
+
+    companion object {
+        fun fromKey(key: String?): ColorVibrancyPreset =
+            entries.firstOrNull { it.key == key } ?: VIVID
+    }
+}
+
 enum class DoubleTapAction(val key: String, val label: String) {
+    ACTION_WHEEL("ACTION_WHEEL", "Action Wheel (All Tap Options)"),
     NEXT_MAP("NEXT_MAP", "Next Motion Map"),
     RANDOM_PALETTE("RANDOM_PALETTE", "Randomize Palette"),
     SONG_POPUP("SONG_POPUP", "Show Song Title / Message"),
@@ -80,7 +100,13 @@ data class GeissConfigSnapshot(
     val linearFilter: Boolean = true,
     val parallaxAmount: Float = 0.08f,
     val touchBurstEnabled: Boolean = true,
-    val doubleTapAction: DoubleTapAction = DoubleTapAction.NEXT_MAP
+    val doubleTapAction: DoubleTapAction = DoubleTapAction.NEXT_MAP,
+    val singleTapTriggersAction: Boolean = false,
+    val hdrEnabled: Boolean = true,
+    val hdrIntensity: Float = 1.15f,
+    val colorVibrancyPreset: ColorVibrancyPreset = ColorVibrancyPreset.VIVID,
+    val vibrancy: Float = 1.38f,
+    val contrast: Float = 1.12f
 )
 
 data class PresetState(
@@ -318,7 +344,13 @@ class GeissPreferences(context: Context) {
             linearFilter = prefs.getBoolean(KEY_LINEAR_FILTER, true),
             parallaxAmount = prefs.getFloat(KEY_PARALLAX, 0.08f),
             touchBurstEnabled = prefs.getBoolean(KEY_TOUCH_BURST, true),
-            doubleTapAction = DoubleTapAction.fromKey(prefs.getString(KEY_DOUBLE_TAP, DoubleTapAction.NEXT_MAP.key))
+            doubleTapAction = DoubleTapAction.fromKey(prefs.getString(KEY_DOUBLE_TAP, DoubleTapAction.NEXT_MAP.key)),
+            singleTapTriggersAction = prefs.getBoolean(KEY_SINGLE_TAP_ACTION, false),
+            hdrEnabled = prefs.getBoolean(KEY_HDR_ENABLED, true),
+            hdrIntensity = prefs.getFloat(KEY_HDR_INTENSITY, 1.15f),
+            colorVibrancyPreset = ColorVibrancyPreset.fromKey(prefs.getString(KEY_VIBRANCY_PRESET, ColorVibrancyPreset.VIVID.key)),
+            vibrancy = prefs.getFloat(KEY_VIBRANCY, ColorVibrancyPreset.VIVID.vibrancy),
+            contrast = prefs.getFloat(KEY_CONTRAST, ColorVibrancyPreset.VIVID.contrast)
         )
     }
 
@@ -468,6 +500,12 @@ class GeissPreferences(context: Context) {
         const val KEY_PARALLAX = "parallax_amount"
         const val KEY_TOUCH_BURST = "touch_burst"
         const val KEY_DOUBLE_TAP = "double_tap_action"
+        const val KEY_SINGLE_TAP_ACTION = "single_tap_action"
+        const val KEY_HDR_ENABLED = "hdr_enabled"
+        const val KEY_HDR_INTENSITY = "hdr_intensity"
+        const val KEY_VIBRANCY_PRESET = "vibrancy_preset"
+        const val KEY_VIBRANCY = "vibrancy"
+        const val KEY_CONTRAST = "contrast"
 
         const val KEY_MODE_RATING_PREFIX = "mode_rating_"
         const val KEY_PRESET_PREFIX = "preset_slot_"

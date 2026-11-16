@@ -195,7 +195,11 @@ object GeissNative {
         engineHandle: Long,
         dtSeconds: Float,
         linearFilter: Boolean,
-        parallaxAmount: Float
+        parallaxAmount: Float,
+        hdrEnabled: Boolean,
+        hdrIntensity: Float,
+        vibrancy: Float,
+        contrast: Float
     )
 
     fun readStatus(handle: Long): EngineStatus {

@@ -3,10 +3,12 @@ package com.geisswerks.geiss
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
@@ -54,7 +56,18 @@ class SettingsActivity : AppCompatActivity() {
         controller = GeissController.getInstance(this)
         prefs = controller.prefs
 
+        applyWindowHdrMode(prefs.getSnapshot().hdrEnabled)
         buildSettingsUi()
+    }
+
+    private fun applyWindowHdrMode(hdrEnabled: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            window.colorMode = if (hdrEnabled) {
+                ActivityInfo.COLOR_MODE_HDR
+            } else {
+                ActivityInfo.COLOR_MODE_DEFAULT
+            }
+        }
     }
 
     private fun buildSettingsUi() {
@@ -164,6 +177,27 @@ class SettingsActivity : AppCompatActivity() {
                 prefs.update { putBoolean(GeissPreferences.KEY_LINEAR_FILTER, checked) }
             }
 
+            addSwitch(
+                card,
+                title = "HDR Support (Wide Gamut + Bloom)",
+                subtitle = "10-bit EGL output, wide gamut colors & luminous highlight bloom",
+                initial = snap.hdrEnabled
+            ) { checked ->
+                prefs.update { putBoolean(GeissPreferences.KEY_HDR_ENABLED, checked) }
+                applyWindowHdrMode(checked)
+            }
+
+            addSlider(
+                card,
+                title = "HDR Bloom Intensity",
+                min = 20,
+                max = 200,
+                initial = (snap.hdrIntensity * 100f).roundToInt(),
+                formatter = { "$it%" }
+            ) { v ->
+                prefs.update { putFloat(GeissPreferences.KEY_HDR_INTENSITY, v / 100f) }
+            }
+
             addSlider(
                 card,
                 title = "Home Screen Swipe Parallax",
@@ -186,11 +220,20 @@ class SettingsActivity : AppCompatActivity() {
 
             addRadioChoices(
                 card,
-                title = "Double-Tap Wallpaper Action",
+                title = "Tap Wallpaper Action",
                 options = DoubleTapAction.entries.map { it.key to it.label },
                 selectedKey = snap.doubleTapAction.key
             ) { key ->
                 prefs.update { putString(GeissPreferences.KEY_DOUBLE_TAP, key) }
+            }
+
+            addSwitch(
+                card,
+                title = "Trigger Action on Single Tap",
+                subtitle = "Run the selected tap action on a single tap instead of double-tap",
+                initial = snap.singleTapTriggersAction
+            ) { checked ->
+                prefs.update { putBoolean(GeissPreferences.KEY_SINGLE_TAP_ACTION, checked) }
             }
 
             addSwitch(
@@ -203,7 +246,74 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
-        // 3. Visual Dynamics & Palettes (Original Geiss Config)
+        // 3. Color & Vibrancy Grading
+        addSection(container, "Color & Vibrancy") { card ->
+            var suppressVibrancySync = false
+            var selectPresetKey: ((String) -> Unit)? = null
+            var setVibrancySlider: ((Int) -> Unit)? = null
+            var setContrastSlider: ((Int) -> Unit)? = null
+
+            selectPresetKey = addRadioChoices(
+                card,
+                title = "Color Vibrancy Preset",
+                options = ColorVibrancyPreset.entries.map { it.key to it.label },
+                selectedKey = snap.colorVibrancyPreset.key
+            ) { key ->
+                if (suppressVibrancySync) return@addRadioChoices
+                val preset = ColorVibrancyPreset.fromKey(key)
+                prefs.update {
+                    putString(GeissPreferences.KEY_VIBRANCY_PRESET, preset.key)
+                    if (preset != ColorVibrancyPreset.CUSTOM) {
+                        putFloat(GeissPreferences.KEY_VIBRANCY, preset.vibrancy)
+                        putFloat(GeissPreferences.KEY_CONTRAST, preset.contrast)
+                    }
+                }
+                if (preset != ColorVibrancyPreset.CUSTOM) {
+                    suppressVibrancySync = true
+                    setVibrancySlider?.invoke((preset.vibrancy * 100f).roundToInt())
+                    setContrastSlider?.invoke((preset.contrast * 100f).roundToInt())
+                    suppressVibrancySync = false
+                }
+            }
+
+            setVibrancySlider = addSlider(
+                card,
+                title = "Saturation / Vibrancy Boost",
+                min = 50,
+                max = 200,
+                initial = (snap.vibrancy * 100f).roundToInt(),
+                formatter = { "$it%" }
+            ) { v ->
+                if (suppressVibrancySync) return@addSlider
+                prefs.update {
+                    putFloat(GeissPreferences.KEY_VIBRANCY, v / 100f)
+                    putString(GeissPreferences.KEY_VIBRANCY_PRESET, ColorVibrancyPreset.CUSTOM.key)
+                }
+                suppressVibrancySync = true
+                selectPresetKey?.invoke(ColorVibrancyPreset.CUSTOM.key)
+                suppressVibrancySync = false
+            }
+
+            setContrastSlider = addSlider(
+                card,
+                title = "Black-Level Contrast",
+                min = 80,
+                max = 140,
+                initial = (snap.contrast * 100f).roundToInt(),
+                formatter = { "$it%" }
+            ) { v ->
+                if (suppressVibrancySync) return@addSlider
+                prefs.update {
+                    putFloat(GeissPreferences.KEY_CONTRAST, v / 100f)
+                    putString(GeissPreferences.KEY_VIBRANCY_PRESET, ColorVibrancyPreset.CUSTOM.key)
+                }
+                suppressVibrancySync = true
+                selectPresetKey?.invoke(ColorVibrancyPreset.CUSTOM.key)
+                suppressVibrancySync = false
+            }
+        }
+
+        // 4. Visual Dynamics & Palettes (Original Geiss Config)
         addSection(container, "Visual Dynamics & Palettes") { card ->
             addSlider(
                 card,
@@ -438,7 +548,7 @@ class SettingsActivity : AppCompatActivity() {
         initial: Int,
         formatter: (Int) -> String,
         onChanged: (Int) -> Unit
-    ) {
+    ): (Int) -> Unit {
         val block = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, 12, 0, 12)
@@ -466,6 +576,11 @@ class SettingsActivity : AppCompatActivity() {
         block.addView(label)
         block.addView(seek)
         parent.addView(block)
+        return { value ->
+            val clamped = value.coerceIn(min, max)
+            seek.progress = clamped - min
+            label.text = "$title: ${formatter(clamped)}"
+        }
     }
 
     private fun addRadioChoices(
@@ -474,7 +589,7 @@ class SettingsActivity : AppCompatActivity() {
         options: List<Pair<String, String>>,
         selectedKey: String,
         onSelected: (String) -> Unit
-    ) {
+    ): (String) -> Unit {
         val block = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, 12, 0, 12)
@@ -486,17 +601,38 @@ class SettingsActivity : AppCompatActivity() {
             setPadding(0, 0, 0, 6)
         })
         val rg = RadioGroup(this)
+        val idByKey = mutableMapOf<String, Int>()
+        val keyById = mutableMapOf<Int, String>()
+        var initialId = View.NO_ID
         for ((key, label) in options) {
+            val rbId = View.generateViewId()
             val rb = RadioButton(this).apply {
+                id = rbId
                 text = label
                 setTextColor(getColor(R.color.geiss_text_secondary))
-                isChecked = (key == selectedKey)
-                setOnClickListener { onSelected(key) }
             }
             rg.addView(rb)
+            idByKey[key] = rbId
+            keyById[rbId] = key
+            if (key == selectedKey) {
+                initialId = rbId
+            }
+        }
+        if (initialId != View.NO_ID) {
+            rg.check(initialId)
+        }
+        rg.setOnCheckedChangeListener { _, checkedId ->
+            keyById[checkedId]?.let(onSelected)
         }
         block.addView(rg)
         parent.addView(block)
+        return { key ->
+            idByKey[key]?.let { targetId ->
+                if (rg.checkedRadioButtonId != targetId) {
+                    rg.check(targetId)
+                }
+            }
+        }
     }
 
     private fun addButton(

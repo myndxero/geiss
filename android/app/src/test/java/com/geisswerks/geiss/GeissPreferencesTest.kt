@@ -88,6 +88,14 @@ class GeissPreferencesTest {
         assertEquals(710, lw)
         assertEquals(0, lw % 2)
         assertEquals(0, lh % 2)
+
+        val (nw, nh) = GeissPreferences.computeRenderSize(1440, 3120, RenderResolution.NATIVE)
+        assertEquals(1440, nw)
+        assertEquals(3120, nh)
+
+        val (fw, fh) = GeissPreferences.computeRenderSize(1440, 3120, RenderResolution.FULL_HD)
+        assertEquals(1080, fw)
+        assertEquals(2340, fh)
     }
 
     @Test
@@ -95,7 +103,11 @@ class GeissPreferencesTest {
         assertEquals(AudioSourceMode.OUTPUT_MIX, AudioSourceMode.fromKey("BAD_KEY"))
         assertEquals(AudioSourceMode.PLAYBACK_CAPTURE, AudioSourceMode.fromKey("PLAYBACK_CAPTURE"))
         assertEquals(RenderResolution.MEDIUM, RenderResolution.fromKey(null))
+        assertEquals(RenderResolution.NATIVE, RenderResolution.fromKey("NATIVE"))
         assertEquals(DoubleTapAction.NEXT_MAP, DoubleTapAction.fromKey("UNKNOWN"))
+        assertEquals(DoubleTapAction.ACTION_WHEEL, DoubleTapAction.fromKey("ACTION_WHEEL"))
+        assertEquals(ColorVibrancyPreset.VIVID, ColorVibrancyPreset.fromKey("UNKNOWN"))
+        assertEquals(ColorVibrancyPreset.HYPER_NEON, ColorVibrancyPreset.fromKey("HYPER_NEON"))
     }
 
     @Test
