@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Geiss" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/geiss_cyan</item>
+        <item name="colorOnPrimary">#04131A</item>
+        <item name="colorSecondary">@color/geiss_violet</item>
+        <item name="android:colorBackground">@color/geiss_bg</item>
+        <item name="android:statusBarColor">#80070911</item>
+        <item name="android:navigationBarColor">#B0070911</item>
+        <item name="android:windowBackground">@color/geiss_bg</item>
+    </style>
+</resources>

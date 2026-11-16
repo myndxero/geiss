@@ -1,0 +1,2 @@
+-keep class com.geisswerks.geiss.GeissNative { *; }
+-keep class com.geisswerks.geiss.GeissNative$* { *; }

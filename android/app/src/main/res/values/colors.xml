@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="geiss_bg">#070911</color>
+    <color name="geiss_surface">#D8101424</color>
+    <color name="geiss_surface_solid">#12172A</color>
+    <color name="geiss_surface_elevated">#1C2340</color>
+    <color name="geiss_border">#3D4A78</color>
+    <color name="geiss_cyan">#00E5FF</color>
+    <color name="geiss_violet">#8C6BFF</color>
+    <color name="geiss_magenta">#FF4081</color>
+    <color name="geiss_text_primary">#F4F7FF</color>
+    <color name="geiss_text_secondary">#A6B1D0</color>
+    <color name="geiss_green">#2EE59D</color>
+    <color name="geiss_amber">#FFB74D</color>
+</resources>

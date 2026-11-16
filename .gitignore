@@ -1,0 +1,25 @@
+# Android & Gradle build outputs
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# Windows MSVC / CMake local builds
+out/
+build/
+.vs/
+*.user
+*.suo
+
+# IDE & OS
+.idea/
+*.iml
+.DS_Store
+Thumbs.db

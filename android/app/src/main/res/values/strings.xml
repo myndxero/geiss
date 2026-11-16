@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Geiss</string>
+    <string name="wallpaper_label">Geiss Live Visualizer</string>
+    <string name="wallpaper_desc">Audio-reactive psychedelic plasma live wallpaper (Geiss 4.30 port) responding to any music playing on your device.</string>
+    <string name="settings_title">Geiss Configuration</string>
+    <string name="media_listener_label">Geiss Track Title Detector</string>
+</resources>
